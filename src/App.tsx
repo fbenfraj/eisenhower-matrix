@@ -34,7 +34,8 @@ function App() {
   // FAB and Add Task Modal state
   const [isFabOpen, setIsFabOpen] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm] = useState({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false })
+  const [addForm, setAddForm] = useState({ text: '', description: '' })
+  const [isAddingTask, setIsAddingTask] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -53,7 +54,7 @@ function App() {
     return () => document.removeEventListener('click', handleClickOutside)
   }, [isFabOpen])
 
-  const addTask = () => {
+  const addTask = async () => {
     const trimmedValue = addForm.text.trim()
 
     if (trimmedValue === '') {
@@ -66,42 +67,62 @@ function App() {
       return
     }
 
-    let quadrant: Quadrant
-    if (addForm.isUrgent && addForm.isImportant) {
-      quadrant = 'urgent-important'
-    } else if (!addForm.isUrgent && addForm.isImportant) {
-      quadrant = 'not-urgent-important'
-    } else if (addForm.isUrgent && !addForm.isImportant) {
-      quadrant = 'urgent-not-important'
-    } else {
-      quadrant = 'not-urgent-not-important'
-    }
-
-    const isDuplicate = tasks[quadrant].some(
-      task => task.text.toLowerCase() === trimmedValue.toLowerCase()
-    )
-
-    if (isDuplicate) {
-      setError('This task already exists in this quadrant')
-      return
-    }
-
-    const newTask: Task = {
-      id: Date.now(),
-      text: trimmedValue,
-      description: addForm.description.trim() || undefined,
-      deadline: addForm.deadline || undefined,
-      completed: false
-    }
-
-    setTasks(prev => ({
-      ...prev,
-      [quadrant]: [...prev[quadrant], newTask]
-    }))
-
-    setAddForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false })
+    setIsAddingTask(true)
     setError('')
-    setShowAddModal(false)
+
+    try {
+      const openai = new OpenAI({
+        apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+        dangerouslyAllowBrowser: true
+      })
+
+      const taskInfo = addForm.description
+        ? `Task: ${trimmedValue}\nDescription: ${addForm.description.trim()}`
+        : `Task: ${trimmedValue}`
+
+      const prompt = `Categorize this task into an Eisenhower Matrix quadrant:
+
+${taskInfo}
+
+Quadrants:
+1. "urgent-important": Urgent AND important - emergencies, deadlines, crises
+2. "not-urgent-important": Important but NOT urgent - long-term goals, planning, self-improvement
+3. "urgent-not-important": Urgent but NOT important - interruptions, some calls/emails
+4. "not-urgent-not-important": Neither urgent nor important - time wasters, trivial tasks
+
+Respond with ONLY the quadrant key (e.g., "urgent-important"), nothing else.`
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 50
+      })
+
+      const result = response.choices[0].message.content?.trim() as Quadrant
+      const validQuadrants: Quadrant[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
+      const quadrant = validQuadrants.includes(result) ? result : 'not-urgent-not-important'
+
+      const newTask: Task = {
+        id: Date.now(),
+        text: trimmedValue,
+        description: addForm.description.trim() || undefined,
+        completed: false
+      }
+
+      setTasks(prev => ({
+        ...prev,
+        [quadrant]: [...prev[quadrant], newTask]
+      }))
+
+      setAddForm({ text: '', description: '' })
+      setShowAddModal(false)
+    } catch (err) {
+      console.error('AI categorization error:', err)
+      setError('Failed to categorize task. Please try again.')
+    } finally {
+      setIsAddingTask(false)
+    }
   }
 
   const removeTask = (quadrant: Quadrant, taskId: number) => {
@@ -300,7 +321,7 @@ Only respond with the JSON array, nothing else.`
 
   const closeAddModal = () => {
     setShowAddModal(false)
-    setAddForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false })
+    setAddForm({ text: '', description: '' })
     setError('')
   }
 
@@ -396,7 +417,7 @@ Only respond with the JSON array, nothing else.`
 
       {/* Add Task Modal */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={closeAddModal}>
+        <div className="modal-overlay" onClick={isAddingTask ? undefined : closeAddModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Add Task</h2>
             <div className="modal-form">
@@ -409,14 +430,7 @@ Only respond with the JSON array, nothing else.`
                   placeholder="What needs to be done?"
                   maxLength={200}
                   autoFocus
-                />
-              </div>
-              <div className="form-group">
-                <label>Deadline</label>
-                <input
-                  type="date"
-                  value={addForm.deadline}
-                  onChange={(e) => setAddForm({ ...addForm, deadline: e.target.value })}
+                  disabled={isAddingTask}
                 />
               </div>
               <div className="form-group">
@@ -427,32 +441,14 @@ Only respond with the JSON array, nothing else.`
                   placeholder="Add more details..."
                   rows={3}
                   maxLength={500}
+                  disabled={isAddingTask}
                 />
               </div>
-              <div className="form-group">
-                <label>Category</label>
-                <div className="checkbox-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={addForm.isUrgent}
-                      onChange={(e) => setAddForm({ ...addForm, isUrgent: e.target.checked })}
-                    />
-                    Urgent
-                  </label>
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={addForm.isImportant}
-                      onChange={(e) => setAddForm({ ...addForm, isImportant: e.target.checked })}
-                    />
-                    Important
-                  </label>
-                </div>
-              </div>
               <div className="modal-actions">
-                <button onClick={closeAddModal} className="cancel-btn">Cancel</button>
-                <button onClick={addTask} className="save-btn">Add Task</button>
+                <button onClick={closeAddModal} className="cancel-btn" disabled={isAddingTask}>Cancel</button>
+                <button onClick={addTask} className="save-btn" disabled={isAddingTask}>
+                  {isAddingTask ? 'Adding...' : 'Add Task'}
+                </button>
               </div>
             </div>
           </div>
