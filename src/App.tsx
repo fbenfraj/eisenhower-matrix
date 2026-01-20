@@ -5,6 +5,7 @@ import type { Complexity, Quadrant, Task, RecurrenceFormState } from './types'
 import { buildRecurrenceConfig } from './utils/recurrence'
 import { useTasks } from './hooks/useTasks'
 import { useMobile } from './hooks/useMobile'
+import { useAuth } from './context/AuthContext'
 import {
   AddTaskModal,
   EditTaskModal,
@@ -42,6 +43,7 @@ function App() {
   } = useTasks()
 
   const { isMobile, expandedQuadrants, toggleQuadrantExpand } = useMobile()
+  const { logout } = useAuth()
 
   const [isFabOpen, setIsFabOpen] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -145,6 +147,11 @@ function App() {
     autoSortWithAI()
   }
 
+  const handleLogout = () => {
+    setIsFabOpen(false)
+    logout()
+  }
+
   return (
     <div className="app">
       {isLoading ? (
@@ -189,6 +196,7 @@ function App() {
         onToggle={() => setIsFabOpen(!isFabOpen)}
         onAddTask={openAddModal}
         onAutoSort={handleAutoSort}
+        onLogout={handleLogout}
       />
 
       {isAiSorting && (

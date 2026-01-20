@@ -6,6 +6,7 @@ interface FABProps {
   onToggle: () => void
   onAddTask: () => void
   onAutoSort: () => void
+  onLogout: () => void
 }
 
 export const FAB = ({
@@ -13,7 +14,8 @@ export const FAB = ({
   isAiSorting,
   onToggle,
   onAddTask,
-  onAutoSort
+  onAutoSort,
+  onLogout
 }: FABProps) => {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -37,6 +39,10 @@ export const FAB = ({
           <button className="fab-menu-item ai" onClick={onAutoSort} disabled={isAiSorting}>
             <span className="fab-menu-icon">AI</span>
             <span>{isAiSorting ? 'Sorting...' : 'Auto Sort'}</span>
+          </button>
+          <button className="fab-menu-item logout" onClick={onLogout}>
+            <span className="fab-menu-icon">↪</span>
+            <span>Logout</span>
           </button>
         </div>
       )}

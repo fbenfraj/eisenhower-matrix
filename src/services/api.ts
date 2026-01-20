@@ -1,11 +1,23 @@
 import type { Task, Quadrant } from '../types'
+import { getStoredToken } from './auth'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
+function getAuthHeaders(): HeadersInit {
+  const token = getStoredToken()
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
 
 export type ApiTask = Task & { quadrant: Quadrant }
 
 export async function fetchTasks(): Promise<ApiTask[]> {
-  const response = await fetch(`${API_BASE}/api/tasks`)
+  const response = await fetch(`${API_BASE}/api/tasks`, {
+    headers: getAuthHeaders()
+  })
   if (!response.ok) {
     throw new Error('Failed to fetch tasks')
   }
@@ -15,7 +27,7 @@ export async function fetchTasks(): Promise<ApiTask[]> {
 export async function createTask(task: Omit<ApiTask, 'id' | 'completed' | 'completedAt'>): Promise<ApiTask> {
   const response = await fetch(`${API_BASE}/api/tasks`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(task),
   })
   if (!response.ok) {
@@ -27,7 +39,7 @@ export async function createTask(task: Omit<ApiTask, 'id' | 'completed' | 'compl
 export async function updateTask(id: number, updates: Partial<ApiTask>): Promise<ApiTask> {
   const response = await fetch(`${API_BASE}/api/tasks/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(updates),
   })
   if (!response.ok) {
@@ -39,6 +51,7 @@ export async function updateTask(id: number, updates: Partial<ApiTask>): Promise
 export async function deleteTask(id: number): Promise<void> {
   const response = await fetch(`${API_BASE}/api/tasks/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   })
   if (!response.ok) {
     throw new Error('Failed to delete task')
@@ -57,7 +70,7 @@ export interface ParsedTaskResponse {
 export async function parseTaskWithAI(input: string): Promise<ParsedTaskResponse> {
   const response = await fetch(`${API_BASE}/api/ai/parse-task`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ input }),
   })
   if (!response.ok) {
@@ -84,7 +97,7 @@ export interface SortedTaskResponse {
 export async function sortTasksWithAI(tasks: TaskForSort[]): Promise<SortedTaskResponse[]> {
   const response = await fetch(`${API_BASE}/api/ai/sort-tasks`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ tasks }),
   })
   if (!response.ok) {

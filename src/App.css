@@ -516,6 +516,14 @@
   background-color: #dc2626;
 }
 
+.fab-menu-item.logout {
+  background-color: #6b7280;
+  color: white;
+}
+.fab-menu-item.logout:hover {
+  background-color: #4b5563;
+}
+
 .fab-menu-icon {
   font-size: 1rem;
   font-weight: 700;
