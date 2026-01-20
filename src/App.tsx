@@ -2,17 +2,45 @@ import { useState, useEffect } from 'react'
 import OpenAI from 'openai'
 import './App.css'
 
+type RecurrencePattern = 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+
 type Task = {
   id: number
   text: string
   description?: string
   deadline?: string
   completed: boolean
+  recurrence?: RecurrencePattern
 }
 
 type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-important' | 'not-urgent-not-important'
 
 const STORAGE_KEY = 'eisenhower-matrix-tasks'
+
+const calculateNextDeadline = (
+  currentDeadline: string | undefined,
+  recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly'
+): string => {
+  const baseDate = currentDeadline ? new Date(currentDeadline) : new Date()
+  const nextDate = new Date(baseDate)
+
+  switch (recurrence) {
+    case 'daily':
+      nextDate.setDate(nextDate.getDate() + 1)
+      break
+    case 'weekly':
+      nextDate.setDate(nextDate.getDate() + 7)
+      break
+    case 'monthly':
+      nextDate.setMonth(nextDate.getMonth() + 1)
+      break
+    case 'yearly':
+      nextDate.setFullYear(nextDate.getFullYear() + 1)
+      break
+  }
+
+  return nextDate.toISOString().split('T')[0]
+}
 
 function App() {
   const [tasks, setTasks] = useState<Record<Quadrant, Task[]>>(() => {
@@ -29,7 +57,7 @@ function App() {
   })
   const [isAiSorting, setIsAiSorting] = useState(false)
   const [editingTask, setEditingTask] = useState<{ task: Task; quadrant: Quadrant } | null>(null)
-  const [editForm, setEditForm] = useState({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false })
+  const [editForm, setEditForm] = useState({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null as RecurrencePattern })
 
   // FAB and Add Task Modal state
   const [isFabOpen, setIsFabOpen] = useState(false)
@@ -95,7 +123,8 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation) wit
   "title": "short task title (max 50 chars)",
   "description": "additional details or empty string if none",
   "deadline": "YYYY-MM-DD format or null if no deadline mentioned",
-  "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important"
+  "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important",
+  "recurrence": "one of: daily, weekly, monthly, yearly, or null if not recurring"
 }
 
 Quadrant rules:
@@ -103,6 +132,15 @@ Quadrant rules:
 - "not-urgent-important": Important goals, deadlines > 2 days away, planning, learning, health
 - "urgent-not-important": Minor urgent items, some calls/emails, interruptions
 - "not-urgent-not-important": Low priority, trivial tasks, entertainment, time wasters
+
+Recurrence detection:
+- "daily": phrases like "every day", "daily", "each day"
+- "weekly": phrases like "every week", "weekly", "each week", "every Monday", "every Friday"
+- "monthly": phrases like "every month", "monthly", "each month"
+- "yearly": phrases like "every year", "yearly", "annually", "each year"
+- null: no recurring pattern detected
+
+For recurring tasks: if no explicit deadline is mentioned, set deadline to today's date (${today.toISOString().split('T')[0]}).
 
 Date interpretation:
 - "today" = ${today.toISOString().split('T')[0]}
@@ -127,17 +165,22 @@ Respond with ONLY the JSON object.`
         description: string
         deadline: string | null
         quadrant: Quadrant
+        recurrence: RecurrencePattern
       }
 
       const validQuadrants: Quadrant[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
       const quadrant = validQuadrants.includes(parsed.quadrant) ? parsed.quadrant : 'not-urgent-not-important'
+
+      const validRecurrences: RecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly', null]
+      const recurrence = validRecurrences.includes(parsed.recurrence) ? parsed.recurrence : null
 
       const newTask: Task = {
         id: Date.now(),
         text: parsed.title.slice(0, 100),
         description: parsed.description || undefined,
         deadline: parsed.deadline || undefined,
-        completed: false
+        completed: false,
+        recurrence: recurrence || undefined
       }
 
       setTasks(prev => ({
@@ -163,12 +206,43 @@ Respond with ONLY the JSON object.`
   }
 
   const toggleComplete = (quadrant: Quadrant, taskId: number) => {
-    setTasks(prev => ({
-      ...prev,
-      [quadrant]: prev[quadrant].map(task =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
-    }))
+    setTasks(prev => {
+      const task = prev[quadrant].find(t => t.id === taskId)
+      if (!task) return prev
+
+      const isCompleting = !task.completed
+
+      // If completing a recurring task, create the next occurrence
+      if (isCompleting && task.recurrence) {
+        const nextDeadline = calculateNextDeadline(task.deadline, task.recurrence)
+        const nextTask: Task = {
+          id: Date.now(),
+          text: task.text,
+          description: task.description,
+          deadline: nextDeadline,
+          completed: false,
+          recurrence: task.recurrence
+        }
+
+        return {
+          ...prev,
+          [quadrant]: [
+            ...prev[quadrant].map(t =>
+              t.id === taskId ? { ...t, completed: true } : t
+            ),
+            nextTask
+          ]
+        }
+      }
+
+      // Normal toggle for non-recurring tasks or uncompleting
+      return {
+        ...prev,
+        [quadrant]: prev[quadrant].map(t =>
+          t.id === taskId ? { ...t, completed: !t.completed } : t
+        )
+      }
+    })
   }
 
   const openEditModal = (task: Task, quadrant: Quadrant) => {
@@ -181,13 +255,14 @@ Respond with ONLY the JSON object.`
       description: task.description || '',
       deadline: task.deadline || '',
       isUrgent,
-      isImportant
+      isImportant,
+      recurrence: task.recurrence || null
     })
   }
 
   const closeEditModal = () => {
     setEditingTask(null)
-    setEditForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false })
+    setEditForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null })
   }
 
   const saveTaskEdit = () => {
@@ -213,7 +288,8 @@ Respond with ONLY the JSON object.`
       ...editingTask.task,
       text: editForm.text.trim(),
       description: editForm.description.trim() || undefined,
-      deadline: editForm.deadline || undefined
+      deadline: editForm.deadline || undefined,
+      recurrence: editForm.recurrence || undefined
     }
 
     if (newQuadrant !== editingTask.quadrant) {
@@ -338,7 +414,8 @@ Only respond with the JSON array, nothing else.`
             text: originalTask.text,
             description: originalTask.description,
             deadline: originalTask.deadline,
-            completed: originalTask.completed
+            completed: originalTask.completed,
+            recurrence: originalTask.recurrence
           })
         }
       })
@@ -398,6 +475,7 @@ Only respond with the JSON array, nothing else.`
                       onChange={() => toggleComplete(quadrant, task.id)}
                     />
                     <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
+                      {task.recurrence && <span className="recurrence-icon">↻</span>}
                       <span className="task-text">{task.text}</span>
                       {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
                     </div>
@@ -517,6 +595,20 @@ Only respond with the JSON array, nothing else.`
                     </button>
                   )}
                 </div>
+              </div>
+              <div className="form-group">
+                <label>Recurrence</label>
+                <select
+                  value={editForm.recurrence || ''}
+                  onChange={(e) => setEditForm({ ...editForm, recurrence: (e.target.value || null) as RecurrencePattern })}
+                  className="recurrence-select"
+                >
+                  <option value="">None</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
               </div>
               <div className="form-group">
                 <label>Description</label>
