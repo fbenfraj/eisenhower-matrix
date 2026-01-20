@@ -50,12 +50,9 @@ type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-import
 
 const STORAGE_KEY = 'eisenhower-matrix-tasks'
 
-// Check if a task should be visible (hide completed tasks from previous days)
+// Check if a task should be visible (hide all completed tasks)
 const isTaskVisible = (task: Task): boolean => {
-  if (!task.completed) return true
-  if (!task.completedAt) return true // Show completed tasks without completedAt for backwards compatibility
-  const today = new Date().toISOString().split('T')[0]
-  return task.completedAt === today
+  return !task.completed
 }
 
 // Get days in a month
@@ -961,6 +958,14 @@ Only respond with the JSON array, nothing else.`
     'not-urgent-not-important': { title: "Don't Do", label: 'Not Urgent & Not Important' }
   }
 
+  // Short labels for filter chips
+  const quadrantShortLabels: Record<Quadrant, string> = {
+    'urgent-important': 'Do First',
+    'not-urgent-important': 'Schedule',
+    'urgent-not-important': 'Delegate',
+    'not-urgent-not-important': "Don't Do"
+  }
+
   return (
     <div className="app">
       {totalTasks === 0 ? (
@@ -968,22 +973,41 @@ Only respond with the JSON array, nothing else.`
           <p>Add a task to start</p>
         </div>
       ) : (
-        <div className={`matrix quadrants-${nonEmptyQuadrants.length}`}>
+        <>
+          {/* Mobile filter bar */}
+          {isMobile && (
+            <div className="filter-bar">
+              {nonEmptyQuadrants.map(quadrant => (
+                <button
+                  key={quadrant}
+                  className={`filter-chip ${quadrant}${expandedQuadrants.has(quadrant) ? ' active' : ''}`}
+                  onClick={() => toggleQuadrantExpand(quadrant)}
+                >
+                  {quadrantShortLabels[quadrant]}
+                  <span className="filter-count">{visibleTasks[quadrant].length}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={`matrix quadrants-${nonEmptyQuadrants.length}`}>
           {nonEmptyQuadrants.map(quadrant => {
             const isExpanded = !isMobile || expandedQuadrants.has(quadrant)
             const taskCount = visibleTasks[quadrant].length
             const sortedTasks = [...visibleTasks[quadrant]].sort((a, b) => {
-              const completionDiff = Number(a.completed) - Number(b.completed)
-              if (completionDiff !== 0) return completionDiff
               const aComplexity = COMPLEXITY_ORDER[a.complexity || 'medium']
               const bComplexity = COMPLEXITY_ORDER[b.complexity || 'medium']
               return aComplexity - bComplexity
             })
 
+            // On mobile, hide collapsed quadrants completely
+            if (isMobile && !isExpanded) {
+              return null
+            }
+
             return (
               <div
                 key={quadrant}
-                className={`quadrant ${quadrant}${isMobile ? (isExpanded ? ' expanded' : ' collapsed') : ''}`}
+                className={`quadrant ${quadrant}${isMobile ? ' expanded' : ''}`}
               >
                 <div
                   className={`quadrant-header${isMobile ? ' clickable' : ''}`}
@@ -996,47 +1020,34 @@ Only respond with the JSON array, nothing else.`
                   {isMobile && (
                     <div className="quadrant-header-right">
                       <span className={`task-count task-count-${quadrant}`}>{taskCount}</span>
-                      <span className={`chevron${isExpanded ? ' expanded' : ''}`}>›</span>
+                      <span className={`chevron expanded`}>›</span>
                     </div>
                   )}
                 </div>
 
-                {isExpanded ? (
-                  <ul>
-                    {sortedTasks.map(task => (
-                      <li key={task.id} className={task.completed ? 'completed' : ''}>
-                        <input
-                          type="checkbox"
-                          checked={task.completed}
-                          onChange={() => toggleComplete(quadrant, task.id)}
-                        />
-                        <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
-                          {task.recurrence && <span className="recurrence-icon">↻</span>}
-                          {task.complexity && <span className={`complexity-badge complexity-${task.complexity}`}>●</span>}
-                          <span className="task-text">{task.text}</span>
-                          {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
-                        </div>
-                        <button className="delete-btn" onClick={() => removeTask(quadrant, task.id)}>×</button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="task-preview">
-                    {sortedTasks.slice(0, 2).map(task => (
-                      <div key={task.id} className="preview-card" onClick={() => openEditModal(task, quadrant)}>
+                <ul>
+                  {sortedTasks.map(task => (
+                    <li key={task.id}>
+                      <input
+                        type="checkbox"
+                        checked={task.completed}
+                        onChange={() => toggleComplete(quadrant, task.id)}
+                      />
+                      <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
+                        {task.recurrence && <span className="recurrence-icon">↻</span>}
                         {task.complexity && <span className={`complexity-badge complexity-${task.complexity}`}>●</span>}
-                        <span className="preview-text">{task.text}</span>
+                        <span className="task-text">{task.text}</span>
+                        {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
                       </div>
-                    ))}
-                    {taskCount > 2 && (
-                      <span className="preview-more">+{taskCount - 2} more</span>
-                    )}
-                  </div>
-                )}
+                      <button className="delete-btn" onClick={() => removeTask(quadrant, task.id)}>×</button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )
           })}
         </div>
+        </>
       )}
 
       {/* Floating Action Button */}
