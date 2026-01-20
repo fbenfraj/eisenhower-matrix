@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import OpenAI from 'openai'
 import './App.css'
 
@@ -366,6 +366,7 @@ function App() {
   const [addForm, setAddForm] = useState({ input: '' })
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [error, setError] = useState('')
+  const addTaskTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Mobile accordion state
   const [expandedQuadrants, setExpandedQuadrants] = useState<Set<Quadrant>>(
@@ -410,6 +411,16 @@ function App() {
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [isFabOpen])
+
+  // Focus textarea when add modal opens (with delay for mobile PWA keyboard)
+  useEffect(() => {
+    if (showAddModal && addTaskTextareaRef.current) {
+      const timer = setTimeout(() => {
+        addTaskTextareaRef.current?.focus()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showAddModal])
 
   const addTask = async () => {
     const trimmedInput = addForm.input.trim()
@@ -1098,12 +1109,12 @@ Only respond with the JSON array, nothing else.`
             <div className="modal-form">
               <div className="form-group">
                 <textarea
+                  ref={addTaskTextareaRef}
                   value={addForm.input}
                   onChange={(e) => setAddForm({ input: e.target.value })}
                   placeholder="Describe your task... (e.g., 'Submit report by Friday' or 'Learn Spanish for vacation next month')"
                   rows={4}
                   maxLength={500}
-                  autoFocus
                   disabled={isAddingTask}
                 />
                 <span className="char-count">{addForm.input.length}/500</span>
