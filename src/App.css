@@ -38,29 +38,28 @@
 @media (max-width: 600px) {
   .filter-bar {
     display: flex;
-    gap: 8px;
-    padding: 12px;
+    gap: 4px;
+    padding: 8px 4px;
     background-color: #f9fafb;
-    overflow-x: auto;
     flex-shrink: 0;
-    -webkit-overflow-scrolling: touch;
   }
 
   .filter-chip {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px;
     border: 2px solid transparent;
-    border-radius: 20px;
+    border-radius: 12px;
     background-color: #e5e7eb;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: #6b7280;
     cursor: pointer;
-    white-space: nowrap;
     transition: all 0.2s;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
   }
 
   .filter-chip.active {

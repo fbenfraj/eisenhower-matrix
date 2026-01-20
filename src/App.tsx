@@ -181,7 +181,6 @@ function App() {
                 tasks={visibleTasks[quadrant]}
                 isMobile={isMobile}
                 isExpanded={expandedQuadrants.has(quadrant)}
-                onToggleExpand={() => toggleQuadrantExpand(quadrant)}
                 onToggleComplete={(taskId) => toggleComplete(quadrant, taskId)}
                 onEditTask={(task) => openEditModal(task, quadrant)}
                 onRemoveTask={(taskId) => removeTask(quadrant, taskId)}

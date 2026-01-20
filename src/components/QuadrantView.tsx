@@ -6,7 +6,6 @@ interface QuadrantViewProps {
   tasks: Task[]
   isMobile: boolean
   isExpanded: boolean
-  onToggleExpand: () => void
   onToggleComplete: (taskId: number) => void
   onEditTask: (task: Task) => void
   onRemoveTask: (taskId: number) => void
@@ -17,7 +16,6 @@ export const QuadrantView = ({
   tasks,
   isMobile,
   isExpanded,
-  onToggleExpand,
   onToggleComplete,
   onEditTask,
   onRemoveTask
@@ -34,20 +32,11 @@ export const QuadrantView = ({
 
   return (
     <div className={`quadrant ${quadrant}${isMobile ? ' expanded' : ''}`}>
-      <div
-        className={`quadrant-header${isMobile ? ' clickable' : ''}`}
-        onClick={onToggleExpand}
-      >
+      <div className="quadrant-header">
         <div className="quadrant-header-left">
           <h2>{QUADRANT_CONFIG[quadrant].title}</h2>
           <span className="quadrant-label">{QUADRANT_CONFIG[quadrant].label}</span>
         </div>
-        {isMobile && (
-          <div className="quadrant-header-right">
-            <span className={`task-count task-count-${quadrant}`}>{tasks.length}</span>
-            <span className="chevron expanded">›</span>
-          </div>
-        )}
       </div>
 
       <ul>
