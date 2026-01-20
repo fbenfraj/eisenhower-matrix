@@ -29,6 +29,7 @@ function App() {
     visibleTasks,
     nonEmptyQuadrants,
     totalTasks,
+    isLoading,
     isAiSorting,
     isAddingTask,
     error,
@@ -146,7 +147,11 @@ function App() {
 
   return (
     <div className="app">
-      {totalTasks === 0 ? (
+      {isLoading ? (
+        <div className="empty-state">
+          <p>Loading tasks...</p>
+        </div>
+      ) : totalTasks === 0 ? (
         <div className="empty-state">
           <p>Add a task to start</p>
         </div>

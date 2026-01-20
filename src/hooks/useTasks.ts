@@ -1,35 +1,54 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Quadrant, Task } from '../types'
-import { STORAGE_KEY, VALID_COMPLEXITIES, VALID_QUADRANTS } from '../constants'
+import { VALID_COMPLEXITIES, VALID_QUADRANTS } from '../constants'
 import { calculateNextDeadline } from '../utils/recurrence'
 import { isTaskVisible } from '../utils/task'
 import { addTaskWithAI, sortTasksWithAI } from '../services/ai'
 import { validateRecurrence } from '../utils/validation'
+import * as api from '../services/api'
 
 type TasksState = Record<Quadrant, Task[]>
 
-const getInitialTasks = (): TasksState => {
-  const saved = localStorage.getItem(STORAGE_KEY)
-  if (saved) {
-    return JSON.parse(saved)
+const emptyTasksState: TasksState = {
+  'urgent-important': [],
+  'not-urgent-important': [],
+  'urgent-not-important': [],
+  'not-urgent-not-important': []
+}
+
+function groupTasksByQuadrant(tasks: api.ApiTask[]): TasksState {
+  const grouped: TasksState = { ...emptyTasksState }
+  for (const task of tasks) {
+    const { quadrant, ...taskWithoutQuadrant } = task
+    if (grouped[quadrant]) {
+      grouped[quadrant].push(taskWithoutQuadrant)
+    }
   }
-  return {
-    'urgent-important': [],
-    'not-urgent-important': [],
-    'urgent-not-important': [],
-    'not-urgent-not-important': []
-  }
+  return grouped
 }
 
 export const useTasks = () => {
-  const [tasks, setTasks] = useState<TasksState>(getInitialTasks)
+  const [tasks, setTasks] = useState<TasksState>(emptyTasksState)
+  const [isLoading, setIsLoading] = useState(true)
   const [isAiSorting, setIsAiSorting] = useState(false)
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [error, setError] = useState('')
 
+  const loadTasks = useCallback(async () => {
+    try {
+      const apiTasks = await api.fetchTasks()
+      setTasks(groupTasksByQuadrant(apiTasks))
+    } catch (err) {
+      console.error('Failed to load tasks:', err)
+      setError('Failed to load tasks from server')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
-  }, [tasks])
+    loadTasks()
+  }, [loadTasks])
 
   const addTask = async (input: string) => {
     const trimmedInput = input.trim()
@@ -50,55 +69,71 @@ export const useTasks = () => {
     try {
       const { task, quadrant } = await addTaskWithAI(trimmedInput)
 
+      const createdTask = await api.createTask({
+        text: task.text,
+        description: task.description,
+        deadline: task.deadline,
+        quadrant,
+        complexity: task.complexity,
+        showAfter: task.showAfter,
+        recurrence: task.recurrence,
+      })
+
       setTasks(prev => ({
         ...prev,
-        [quadrant]: [...prev[quadrant], task]
+        [quadrant]: [...prev[quadrant], { ...createdTask, id: createdTask.id }]
       }))
 
       return true
     } catch (err) {
-      console.error('AI categorization error:', err)
-      setError('Failed to process task. Please try again.')
+      console.error('Failed to add task:', err)
+      setError('Failed to add task. Please try again.')
       return false
     } finally {
       setIsAddingTask(false)
     }
   }
 
-  const removeTask = (quadrant: Quadrant, taskId: number) => {
-    setTasks(prev => ({
-      ...prev,
-      [quadrant]: prev[quadrant].filter(task => task.id !== taskId)
-    }))
+  const removeTask = async (quadrant: Quadrant, taskId: number) => {
+    try {
+      await api.deleteTask(taskId)
+      setTasks(prev => ({
+        ...prev,
+        [quadrant]: prev[quadrant].filter(task => task.id !== taskId)
+      }))
+    } catch (err) {
+      console.error('Failed to delete task:', err)
+      setError('Failed to delete task')
+    }
   }
 
-  const toggleComplete = (quadrant: Quadrant, taskId: number) => {
-    setTasks(prev => {
-      const task = prev[quadrant].find(t => t.id === taskId)
-      if (!task) return prev
+  const toggleComplete = async (quadrant: Quadrant, taskId: number) => {
+    const task = tasks[quadrant].find(t => t.id === taskId)
+    if (!task) return
 
-      const isCompleting = !task.completed
-      const today = new Date().toISOString().split('T')[0]
+    const isCompleting = !task.completed
+    const today = new Date().toISOString().split('T')[0]
 
+    try {
       if (isCompleting && task.recurrence) {
         const nextOccurrenceDate = calculateNextDeadline(today, task.recurrence)
-
         const nextDeadline = task.deadline
           ? calculateNextDeadline(task.deadline, task.recurrence)
           : undefined
 
-        const nextTask: Task = {
-          id: Date.now(),
+        await api.updateTask(taskId, { completed: true, completedAt: today })
+
+        const nextTask = await api.createTask({
           text: task.text,
           description: task.description,
           deadline: nextDeadline,
-          completed: false,
+          quadrant,
           recurrence: task.recurrence,
           complexity: task.complexity,
           showAfter: nextOccurrenceDate
-        }
+        })
 
-        return {
+        setTasks(prev => ({
           ...prev,
           [quadrant]: [
             ...prev[quadrant].map(t =>
@@ -106,36 +141,54 @@ export const useTasks = () => {
             ),
             nextTask
           ]
-        }
-      }
+        }))
+      } else {
+        await api.updateTask(taskId, {
+          completed: isCompleting,
+          completedAt: isCompleting ? today : undefined
+        })
 
-      return {
-        ...prev,
-        [quadrant]: prev[quadrant].map(t =>
-          t.id === taskId ? {
-            ...t,
-            completed: !t.completed,
-            completedAt: isCompleting ? today : undefined
-          } : t
-        )
+        setTasks(prev => ({
+          ...prev,
+          [quadrant]: prev[quadrant].map(t =>
+            t.id === taskId ? {
+              ...t,
+              completed: !t.completed,
+              completedAt: isCompleting ? today : undefined
+            } : t
+          )
+        }))
       }
-    })
+    } catch (err) {
+      console.error('Failed to toggle task completion:', err)
+      setError('Failed to update task')
+    }
   }
 
-  const updateTask = (originalQuadrant: Quadrant, updatedTask: Task, newQuadrant: Quadrant) => {
-    if (newQuadrant !== originalQuadrant) {
-      setTasks(prev => ({
-        ...prev,
-        [originalQuadrant]: prev[originalQuadrant].filter(task => task.id !== updatedTask.id),
-        [newQuadrant]: [...prev[newQuadrant], updatedTask]
-      }))
-    } else {
-      setTasks(prev => ({
-        ...prev,
-        [originalQuadrant]: prev[originalQuadrant].map(task =>
-          task.id === updatedTask.id ? updatedTask : task
-        )
-      }))
+  const updateTask = async (originalQuadrant: Quadrant, updatedTask: Task, newQuadrant: Quadrant) => {
+    try {
+      await api.updateTask(updatedTask.id, {
+        ...updatedTask,
+        quadrant: newQuadrant
+      })
+
+      if (newQuadrant !== originalQuadrant) {
+        setTasks(prev => ({
+          ...prev,
+          [originalQuadrant]: prev[originalQuadrant].filter(task => task.id !== updatedTask.id),
+          [newQuadrant]: [...prev[newQuadrant], updatedTask]
+        }))
+      } else {
+        setTasks(prev => ({
+          ...prev,
+          [originalQuadrant]: prev[originalQuadrant].map(task =>
+            task.id === updatedTask.id ? updatedTask : task
+          )
+        }))
+      }
+    } catch (err) {
+      console.error('Failed to update task:', err)
+      setError('Failed to update task')
     }
   }
 
@@ -165,6 +218,8 @@ export const useTasks = () => {
         'not-urgent-not-important': []
       }
 
+      const updatePromises: Promise<void>[] = []
+
       sortedTasks.forEach(categorized => {
         const originalTask = allTasks.find(t => t.text === categorized.text)
         if (originalTask) {
@@ -178,7 +233,7 @@ export const useTasks = () => {
           const aiRecurrence = validateRecurrence(categorized.recurrence)
           const recurrence = aiRecurrence !== null ? aiRecurrence : originalTask.recurrence
 
-          newTasks[quadrant].push({
+          const updatedTask = {
             id: originalTask.id,
             text: originalTask.text,
             description: originalTask.description,
@@ -187,10 +242,19 @@ export const useTasks = () => {
             recurrence: recurrence || undefined,
             completedAt: originalTask.completedAt,
             complexity
-          })
+          }
+
+          newTasks[quadrant].push(updatedTask)
+
+          if (quadrant !== originalTask.currentQuadrant || complexity !== originalTask.complexity) {
+            updatePromises.push(
+              api.updateTask(originalTask.id, { quadrant, complexity }).then(() => {})
+            )
+          }
         }
       })
 
+      await Promise.all(updatePromises)
       setTasks(newTasks)
     } catch (err) {
       console.error('AI sorting error:', err)
@@ -218,6 +282,7 @@ export const useTasks = () => {
     visibleTasks,
     nonEmptyQuadrants,
     totalTasks,
+    isLoading,
     isAiSorting,
     isAddingTask,
     error,
