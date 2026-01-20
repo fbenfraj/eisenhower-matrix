@@ -707,6 +707,13 @@
 
 /* Mobile Responsive */
 @media (max-width: 600px) {
+  .matrix {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow-y: auto;
+  }
+
   .matrix.quadrants-1,
   .matrix.quadrants-2,
   .matrix.quadrants-3,
@@ -714,17 +721,98 @@
     grid-template-columns: 1fr;
   }
 
-  .matrix.quadrants-1 { grid-template-rows: 1fr; }
-  .matrix.quadrants-2 { grid-template-rows: 1fr 1fr; }
-  .matrix.quadrants-3 { grid-template-rows: 1fr 1fr 1fr; }
-  .matrix.quadrants-4 { grid-template-rows: repeat(4, 1fr); }
-
   .matrix.quadrants-3 .quadrant:last-child {
     grid-column: span 1;
   }
 
+  /* Accordion quadrant styles */
   .quadrant {
-    padding: 10px;
+    padding: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: flex 0.3s ease-out;
+  }
+
+  .quadrant.collapsed {
+    flex: 0 0 auto;
+  }
+
+  .quadrant.expanded {
+    flex: 1 1 auto;
+    min-height: 150px;
+  }
+
+  /* Clickable header for accordion */
+  .quadrant-header.clickable {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    min-height: 48px;
+    margin-bottom: 0;
+    border-bottom: none;
+    transition: background-color 0.15s;
+  }
+
+  .quadrant-header.clickable:active {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .quadrant-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .quadrant-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Task count badge */
+  .task-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    color: white;
+  }
+
+  .task-count-urgent-important {
+    background-color: #ef4444;
+  }
+
+  .task-count-not-urgent-important {
+    background-color: #22c55e;
+  }
+
+  .task-count-urgent-not-important {
+    background-color: #f59e0b;
+  }
+
+  .task-count-not-urgent-not-important {
+    background-color: #6b7280;
+  }
+
+  /* Chevron indicator */
+  .chevron {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #9ca3af;
+    transition: transform 0.3s ease-out;
+  }
+
+  .chevron.expanded {
+    transform: rotate(90deg);
+  }
+
+  /* Expanded quadrant task list */
+  .quadrant.expanded ul {
+    padding: 0 12px 12px;
+    margin: 0;
+    overflow-y: auto;
   }
 
   .quadrant h2 {
@@ -738,6 +826,44 @@
   .quadrant li {
     padding: 6px 8px;
     font-size: 0.8rem;
+  }
+
+  /* Task preview for collapsed quadrants */
+  .task-preview {
+    padding: 0 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .preview-card {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background-color: #f3f4f6;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+
+  .preview-card:active {
+    background-color: #e5e7eb;
+  }
+
+  .preview-text {
+    font-size: 0.8rem;
+    color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .preview-more {
+    font-size: 0.75rem;
+    color: #6b7280;
+    padding-left: 4px;
+    font-weight: 500;
   }
 
   .fab-container {

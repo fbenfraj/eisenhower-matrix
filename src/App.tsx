@@ -370,6 +370,34 @@ function App() {
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [error, setError] = useState('')
 
+  // Mobile accordion state
+  const [expandedQuadrants, setExpandedQuadrants] = useState<Set<Quadrant>>(
+    () => new Set(['urgent-important'])
+  )
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 600)
+
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 600)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const toggleQuadrantExpand = (quadrant: Quadrant) => {
+    if (!isMobile) return
+    setExpandedQuadrants(prev => {
+      const next = new Set(prev)
+      if (next.has(quadrant)) {
+        next.delete(quadrant)
+      } else {
+        next.add(quadrant)
+      }
+      return next
+    })
+  }
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
   }, [tasks])
@@ -941,41 +969,73 @@ Only respond with the JSON array, nothing else.`
         </div>
       ) : (
         <div className={`matrix quadrants-${nonEmptyQuadrants.length}`}>
-          {nonEmptyQuadrants.map(quadrant => (
-            <div key={quadrant} className={`quadrant ${quadrant}`}>
-              <div className="quadrant-header">
-                <h2>{quadrantConfig[quadrant].title}</h2>
-                <span className="quadrant-label">{quadrantConfig[quadrant].label}</span>
-              </div>
-              <ul>
-                {[...visibleTasks[quadrant]].sort((a, b) => {
-                  // First sort by completion status (incomplete first)
-                  const completionDiff = Number(a.completed) - Number(b.completed)
-                  if (completionDiff !== 0) return completionDiff
+          {nonEmptyQuadrants.map(quadrant => {
+            const isExpanded = !isMobile || expandedQuadrants.has(quadrant)
+            const taskCount = visibleTasks[quadrant].length
+            const sortedTasks = [...visibleTasks[quadrant]].sort((a, b) => {
+              const completionDiff = Number(a.completed) - Number(b.completed)
+              if (completionDiff !== 0) return completionDiff
+              const aComplexity = COMPLEXITY_ORDER[a.complexity || 'medium']
+              const bComplexity = COMPLEXITY_ORDER[b.complexity || 'medium']
+              return aComplexity - bComplexity
+            })
 
-                  // Then sort by complexity (easiest first)
-                  const aComplexity = COMPLEXITY_ORDER[a.complexity || 'medium']
-                  const bComplexity = COMPLEXITY_ORDER[b.complexity || 'medium']
-                  return aComplexity - bComplexity
-                }).map(task => (
-                  <li key={task.id} className={task.completed ? 'completed' : ''}>
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={() => toggleComplete(quadrant, task.id)}
-                    />
-                    <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
-                      {task.recurrence && <span className="recurrence-icon">↻</span>}
-                      {task.complexity && <span className={`complexity-badge complexity-${task.complexity}`}>●</span>}
-                      <span className="task-text">{task.text}</span>
-                      {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
+            return (
+              <div
+                key={quadrant}
+                className={`quadrant ${quadrant}${isMobile ? (isExpanded ? ' expanded' : ' collapsed') : ''}`}
+              >
+                <div
+                  className={`quadrant-header${isMobile ? ' clickable' : ''}`}
+                  onClick={() => toggleQuadrantExpand(quadrant)}
+                >
+                  <div className="quadrant-header-left">
+                    <h2>{quadrantConfig[quadrant].title}</h2>
+                    <span className="quadrant-label">{quadrantConfig[quadrant].label}</span>
+                  </div>
+                  {isMobile && (
+                    <div className="quadrant-header-right">
+                      <span className={`task-count task-count-${quadrant}`}>{taskCount}</span>
+                      <span className={`chevron${isExpanded ? ' expanded' : ''}`}>›</span>
                     </div>
-                    <button className="delete-btn" onClick={() => removeTask(quadrant, task.id)}>×</button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+                  )}
+                </div>
+
+                {isExpanded ? (
+                  <ul>
+                    {sortedTasks.map(task => (
+                      <li key={task.id} className={task.completed ? 'completed' : ''}>
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => toggleComplete(quadrant, task.id)}
+                        />
+                        <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
+                          {task.recurrence && <span className="recurrence-icon">↻</span>}
+                          {task.complexity && <span className={`complexity-badge complexity-${task.complexity}`}>●</span>}
+                          <span className="task-text">{task.text}</span>
+                          {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
+                        </div>
+                        <button className="delete-btn" onClick={() => removeTask(quadrant, task.id)}>×</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="task-preview">
+                    {sortedTasks.slice(0, 2).map(task => (
+                      <div key={task.id} className="preview-card" onClick={() => openEditModal(task, quadrant)}>
+                        {task.complexity && <span className={`complexity-badge complexity-${task.complexity}`}>●</span>}
+                        <span className="preview-text">{task.text}</span>
+                      </div>
+                    ))}
+                    {taskCount > 2 && (
+                      <span className="preview-more">+{taskCount - 2} more</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
