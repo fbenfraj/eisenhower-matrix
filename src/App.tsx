@@ -10,12 +10,21 @@ type Task = {
   description?: string
   deadline?: string
   completed: boolean
+  completedAt?: string // ISO date string of when task was completed
   recurrence?: RecurrencePattern
 }
 
 type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-important' | 'not-urgent-not-important'
 
 const STORAGE_KEY = 'eisenhower-matrix-tasks'
+
+// Check if a task should be visible (hide completed tasks from previous days)
+const isTaskVisible = (task: Task): boolean => {
+  if (!task.completed) return true
+  if (!task.completedAt) return true // Show completed tasks without completedAt for backwards compatibility
+  const today = new Date().toISOString().split('T')[0]
+  return task.completedAt === today
+}
 
 const calculateNextDeadline = (
   currentDeadline: string | undefined,
@@ -211,6 +220,7 @@ Respond with ONLY the JSON object.`
       if (!task) return prev
 
       const isCompleting = !task.completed
+      const today = new Date().toISOString().split('T')[0]
 
       // If completing a recurring task, create the next occurrence
       if (isCompleting && task.recurrence) {
@@ -228,7 +238,7 @@ Respond with ONLY the JSON object.`
           ...prev,
           [quadrant]: [
             ...prev[quadrant].map(t =>
-              t.id === taskId ? { ...t, completed: true } : t
+              t.id === taskId ? { ...t, completed: true, completedAt: today } : t
             ),
             nextTask
           ]
@@ -239,7 +249,11 @@ Respond with ONLY the JSON object.`
       return {
         ...prev,
         [quadrant]: prev[quadrant].map(t =>
-          t.id === taskId ? { ...t, completed: !t.completed } : t
+          t.id === taskId ? {
+            ...t,
+            completed: !t.completed,
+            completedAt: isCompleting ? today : undefined
+          } : t
         )
       }
     })
@@ -441,9 +455,17 @@ Only respond with the JSON array, nothing else.`
     setError('')
   }
 
-  // Get non-empty quadrants
-  const nonEmptyQuadrants = (Object.keys(tasks) as Quadrant[]).filter(q => tasks[q].length > 0)
-  const totalTasks = Object.values(tasks).reduce((sum, arr) => sum + arr.length, 0)
+  // Get visible tasks (filter out completed tasks from previous days)
+  const visibleTasks: Record<Quadrant, Task[]> = {
+    'urgent-important': tasks['urgent-important'].filter(isTaskVisible),
+    'not-urgent-important': tasks['not-urgent-important'].filter(isTaskVisible),
+    'urgent-not-important': tasks['urgent-not-important'].filter(isTaskVisible),
+    'not-urgent-not-important': tasks['not-urgent-not-important'].filter(isTaskVisible)
+  }
+
+  // Get non-empty quadrants (based on visible tasks)
+  const nonEmptyQuadrants = (Object.keys(visibleTasks) as Quadrant[]).filter(q => visibleTasks[q].length > 0)
+  const totalTasks = Object.values(visibleTasks).reduce((sum, arr) => sum + arr.length, 0)
 
   const quadrantConfig: Record<Quadrant, { title: string; label: string }> = {
     'urgent-important': { title: 'Do First', label: 'Urgent & Important' },
@@ -467,7 +489,7 @@ Only respond with the JSON array, nothing else.`
                 <span className="quadrant-label">{quadrantConfig[quadrant].label}</span>
               </div>
               <ul>
-                {[...tasks[quadrant]].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
+                {[...visibleTasks[quadrant]].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
                   <li key={task.id} className={task.completed ? 'completed' : ''}>
                     <input
                       type="checkbox"
