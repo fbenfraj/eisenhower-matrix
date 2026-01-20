@@ -55,17 +55,17 @@ export const useTasks = () => {
     loadTasks()
   }, [loadTasks])
 
-  const addTask = async (input: string) => {
+  const addTask = async (input: string): Promise<Quadrant | null> => {
     const trimmedInput = input.trim()
 
     if (trimmedInput === '') {
       setError('Please describe your task')
-      return false
+      return null
     }
 
     if (trimmedInput.length > 500) {
       setError('Input must be 500 characters or less')
-      return false
+      return null
     }
 
     setIsAddingTask(true)
@@ -89,11 +89,11 @@ export const useTasks = () => {
         [quadrant]: [...prev[quadrant], { ...createdTask, id: createdTask.id }]
       }))
 
-      return true
+      return quadrant
     } catch (err) {
       console.error('Failed to add task:', err)
       setError('Failed to add task. Please try again.')
-      return false
+      return null
     } finally {
       setIsAddingTask(false)
     }

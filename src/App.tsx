@@ -42,7 +42,7 @@ function App() {
     autoSortWithAI
   } = useTasks()
 
-  const { isMobile, expandedQuadrants, toggleQuadrantExpand } = useMobile()
+  const { isMobile, expandedQuadrants, toggleQuadrantExpand, expandQuadrant } = useMobile()
   const { logout } = useAuth()
 
   const [isFabOpen, setIsFabOpen] = useState(false)
@@ -73,10 +73,11 @@ function App() {
   }
 
   const handleAddTask = async () => {
-    const success = await addTask(addInput)
-    if (success) {
+    const quadrant = await addTask(addInput)
+    if (quadrant) {
       setAddInput('')
       setShowAddModal(false)
+      expandQuadrant(quadrant)
     }
   }
 

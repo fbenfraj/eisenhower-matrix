@@ -28,9 +28,19 @@ export const useMobile = () => {
     })
   }
 
+  const expandQuadrant = (quadrant: Quadrant) => {
+    setExpandedQuadrants(prev => {
+      if (prev.has(quadrant)) return prev
+      const next = new Set(prev)
+      next.add(quadrant)
+      return next
+    })
+  }
+
   return {
     isMobile,
     expandedQuadrants,
-    toggleQuadrantExpand
+    toggleQuadrantExpand,
+    expandQuadrant
   }
 }
