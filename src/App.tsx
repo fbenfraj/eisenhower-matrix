@@ -467,7 +467,7 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation) wit
 {
   "title": "short task title (max 50 chars)",
   "description": "additional details or empty string if none",
-  "deadline": "YYYY-MM-DD format or null if no deadline mentioned",
+  "deadline": "YYYY-MM-DD format ONLY if user explicitly mentions a date/deadline, otherwise null",
   "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important",
   "recurrence": <recurrence pattern - see below>,
   "complexity": "one of: easy, medium, hard"
@@ -479,26 +479,34 @@ Quadrant rules:
 - "urgent-not-important": Minor urgent items, some calls/emails, interruptions
 - "not-urgent-not-important": Low priority, trivial tasks, entertainment, time wasters
 
-Recurrence detection - return one of these formats:
+Recurrence detection - ALWAYS use the most specific format possible:
 
-1. Simple patterns (return string):
-   - "daily": "every day", "daily", "each day"
-   - "weekly": "every week", "weekly", "each week"
-   - "monthly": "every month", "monthly", "each month"
+IMPORTANT: When a specific day of the week is mentioned (Monday, Tuesday, etc.), you MUST use format #2 with weekDays array. Do NOT use format #1 for specific days.
+
+1. Generic patterns ONLY (use ONLY when no specific day is mentioned):
+   - "daily": "every day", "daily", "each day" (no specific time)
+   - "weekly": "every week", "weekly" (without mentioning a specific day)
+   - "monthly": "every month", "monthly" (without mentioning a specific date)
    - "yearly": "every year", "yearly", "annually"
 
-2. Custom intervals (return object):
-   - "every 2 weeks" or "biweekly" → { "interval": 2, "unit": "week" }
-   - "every 3 days" → { "interval": 3, "unit": "day" }
-   - "every 2 months" → { "interval": 2, "unit": "month" }
-   - "every other day" → { "interval": 2, "unit": "day" }
-
-3. Specific weekdays (return object with weekDays array, 0=Sunday, 6=Saturday):
+2. Specific weekdays - USE THIS when ANY day name is mentioned (0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday):
    - "every Monday" → { "interval": 1, "unit": "week", "weekDays": [1] }
+   - "every Tuesday" → { "interval": 1, "unit": "week", "weekDays": [2] }
+   - "every Wednesday" → { "interval": 1, "unit": "week", "weekDays": [3] }
+   - "every Thursday" → { "interval": 1, "unit": "week", "weekDays": [4] }
+   - "every Friday" → { "interval": 1, "unit": "week", "weekDays": [5] }
+   - "every Saturday" → { "interval": 1, "unit": "week", "weekDays": [6] }
+   - "every Sunday" → { "interval": 1, "unit": "week", "weekDays": [0] }
    - "every Monday and Wednesday" → { "interval": 1, "unit": "week", "weekDays": [1, 3] }
    - "every Tuesday, Thursday, Saturday" → { "interval": 1, "unit": "week", "weekDays": [2, 4, 6] }
    - "weekdays" or "every weekday" → { "interval": 1, "unit": "week", "weekDays": [1, 2, 3, 4, 5] }
    - "weekends" → { "interval": 1, "unit": "week", "weekDays": [0, 6] }
+
+3. Custom intervals (return object):
+   - "every 2 weeks" or "biweekly" → { "interval": 2, "unit": "week" }
+   - "every 3 days" → { "interval": 3, "unit": "day" }
+   - "every 2 months" → { "interval": 2, "unit": "month" }
+   - "every other day" → { "interval": 2, "unit": "day" }
 
 4. Specific day of month (return object with monthDay):
    - "15th of every month" → { "interval": 1, "unit": "month", "monthDay": 15 }
@@ -507,22 +515,24 @@ Recurrence detection - return one of these formats:
 
 5. No recurrence: return null
 
-Examples:
+Examples - pay attention to specific day handling:
+- "remind me every Monday" → { "interval": 1, "unit": "week", "weekDays": [1] } (NOT "weekly"!)
 - "Call mom every Sunday" → { "interval": 1, "unit": "week", "weekDays": [0] }
 - "Pay rent on the 1st of every month" → { "interval": 1, "unit": "month", "monthDay": 1 }
 - "Team standup every weekday" → { "interval": 1, "unit": "week", "weekDays": [1, 2, 3, 4, 5] }
 - "Gym every other day" → { "interval": 2, "unit": "day" }
 - "Water plants every 3 days" → { "interval": 3, "unit": "day" }
 - "Biweekly payroll" → { "interval": 2, "unit": "week" }
+- "Weekly review" → "weekly" (generic, no specific day mentioned)
 
 Complexity rules:
 - "easy": Quick tasks (< 15 min), simple actions, minimal thinking required
 - "medium": Moderate effort (15 min - 2 hours), some planning needed
 - "hard": Significant effort (> 2 hours), complex, multiple steps, deep focus required
 
-For recurring tasks: if no explicit deadline is mentioned, set deadline to today's date (${today.toISOString().split('T')[0]}).
+IMPORTANT: Do NOT add a deadline unless the user explicitly mentions a specific date, time, or deadline. Recurring tasks do NOT automatically need a deadline - the recurrence pattern is sufficient.
 
-Date interpretation:
+Date interpretation (only use these if user mentions a date):
 - "today" = ${today.toISOString().split('T')[0]}
 - "tomorrow" = ${new Date(today.getTime() + 86400000).toISOString().split('T')[0]}
 - "next week" = ${new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0]}
@@ -644,7 +654,10 @@ Respond with ONLY the JSON object.`
 
       // If completing a recurring task, create the next occurrence
       if (isCompleting && task.recurrence) {
-        const nextDeadline = calculateNextDeadline(task.deadline, task.recurrence)
+        // Only calculate next deadline if the original task had one
+        const nextDeadline = task.deadline
+          ? calculateNextDeadline(task.deadline, task.recurrence)
+          : undefined
         const nextTask: Task = {
           id: Date.now(),
           text: task.text,
@@ -816,17 +829,18 @@ Complexity rules:
 - "medium": Moderate effort (15 min - 2 hours), some planning needed
 - "hard": Significant effort (> 2 hours), complex, multiple steps, deep focus required
 
-Recurrence detection - analyze task text/description for recurring patterns and return one of these formats:
-1. Simple patterns (return string): "daily", "weekly", "monthly", "yearly"
-2. Custom intervals (return object):
-   - "every 2 weeks" or "biweekly" → { "interval": 2, "unit": "week" }
-   - "every 3 days" → { "interval": 3, "unit": "day" }
-3. Specific weekdays (return object with weekDays array, 0=Sunday, 6=Saturday):
-   - "every Monday" → { "interval": 1, "unit": "week", "weekDays": [1] }
+Recurrence detection - ALWAYS use the most specific format possible:
+IMPORTANT: When a specific day of the week is mentioned (Monday, Tuesday, etc.), you MUST use the weekDays format. Do NOT use "weekly" for specific days.
+
+1. Generic patterns ONLY (use ONLY when no specific day is mentioned): "daily", "weekly", "monthly", "yearly"
+2. Specific weekdays - USE THIS when ANY day name is mentioned (0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday):
+   - "every Monday" → { "interval": 1, "unit": "week", "weekDays": [1] } (NOT "weekly"!)
+   - "every Tuesday" → { "interval": 1, "unit": "week", "weekDays": [2] }
    - "every Monday and Wednesday" → { "interval": 1, "unit": "week", "weekDays": [1, 3] }
    - "weekdays" → { "interval": 1, "unit": "week", "weekDays": [1, 2, 3, 4, 5] }
-4. Specific day of month (return object with monthDay):
-   - "15th of every month" → { "interval": 1, "unit": "month", "monthDay": 15 }
+   - "weekends" → { "interval": 1, "unit": "week", "weekDays": [0, 6] }
+3. Custom intervals: { "interval": 2, "unit": "week" } for "every 2 weeks", etc.
+4. Specific day of month: { "interval": 1, "unit": "month", "monthDay": 15 } for "15th of every month"
 5. No recurrence detected: return null
 
 Here are the tasks to categorize:
