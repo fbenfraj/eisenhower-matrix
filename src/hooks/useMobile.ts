@@ -4,7 +4,12 @@ import type { Quadrant } from '../types'
 export const useMobile = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 600)
   const [expandedQuadrants, setExpandedQuadrants] = useState<Set<Quadrant>>(
-    () => new Set(['urgent-important'])
+    () => new Set<Quadrant>([
+      'urgent-important',
+      'not-urgent-important',
+      'urgent-not-important',
+      'not-urgent-not-important'
+    ])
   )
 
   useEffect(() => {
