@@ -17,7 +17,12 @@ const emptyTasksState: TasksState = {
 }
 
 function groupTasksByQuadrant(tasks: api.ApiTask[]): TasksState {
-  const grouped: TasksState = { ...emptyTasksState }
+  const grouped: TasksState = {
+    'urgent-important': [],
+    'not-urgent-important': [],
+    'urgent-not-important': [],
+    'not-urgent-not-important': []
+  }
   for (const task of tasks) {
     const { quadrant, ...taskWithoutQuadrant } = task
     if (grouped[quadrant]) {
