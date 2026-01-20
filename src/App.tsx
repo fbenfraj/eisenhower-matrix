@@ -753,6 +753,7 @@ Respond with ONLY the JSON object.`
         if (task.description) desc += `\nDescription: ${task.description}`
         if (task.deadline) desc += `\nDeadline: ${task.deadline}`
         if (task.complexity) desc += `\nCurrent complexity: ${task.complexity}`
+        if (task.recurrence) desc += `\nCurrent recurrence: ${JSON.stringify(task.recurrence)}`
         return desc
       }).join('\n\n')
 
@@ -774,13 +775,27 @@ Complexity rules:
 - "medium": Moderate effort (15 min - 2 hours), some planning needed
 - "hard": Significant effort (> 2 hours), complex, multiple steps, deep focus required
 
+Recurrence detection - analyze task text/description for recurring patterns and return one of these formats:
+1. Simple patterns (return string): "daily", "weekly", "monthly", "yearly"
+2. Custom intervals (return object):
+   - "every 2 weeks" or "biweekly" → { "interval": 2, "unit": "week" }
+   - "every 3 days" → { "interval": 3, "unit": "day" }
+3. Specific weekdays (return object with weekDays array, 0=Sunday, 6=Saturday):
+   - "every Monday" → { "interval": 1, "unit": "week", "weekDays": [1] }
+   - "every Monday and Wednesday" → { "interval": 1, "unit": "week", "weekDays": [1, 3] }
+   - "weekdays" → { "interval": 1, "unit": "week", "weekDays": [1, 2, 3, 4, 5] }
+4. Specific day of month (return object with monthDay):
+   - "15th of every month" → { "interval": 1, "unit": "month", "monthDay": 15 }
+5. No recurrence detected: return null
+
 Here are the tasks to categorize:
 ${taskDescriptions}
 
-For each task, determine which quadrant it belongs to and assess its complexity. Respond with a JSON array where each element has:
+For each task, determine which quadrant it belongs to, assess its complexity, and detect any recurrence pattern from the task text/description. Respond with a JSON array where each element has:
 - "text": the exact task text (match it precisely)
 - "quadrant": one of "urgent-important", "not-urgent-important", "urgent-not-important", or "not-urgent-not-important"
 - "complexity": one of "easy", "medium", or "hard"
+- "recurrence": recurrence pattern (string, object, or null) - only set if detected in task text/description, otherwise keep existing or null
 
 Only respond with the JSON array, nothing else.`
 
@@ -793,7 +808,12 @@ Only respond with the JSON array, nothing else.`
       const result = response.choices[0].message.content
       if (!result) throw new Error('No response from AI')
 
-      const categorizedTasks = JSON.parse(result) as { text: string; quadrant: Quadrant; complexity: Complexity }[]
+      const categorizedTasks = JSON.parse(result) as {
+        text: string
+        quadrant: Quadrant
+        complexity: Complexity
+        recurrence?: TaskRecurrence | { interval: number; unit: string; weekDays?: number[]; monthDay?: number } | null
+      }[]
 
       const newTasks: Record<Quadrant, Task[]> = {
         'urgent-important': [],
@@ -803,18 +823,70 @@ Only respond with the JSON array, nothing else.`
       }
 
       const validComplexities: Complexity[] = ['easy', 'medium', 'hard']
+      const validQuadrants: Quadrant[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
+
+      // Validate recurrence from AI response
+      const validateRecurrence = (rec: unknown): TaskRecurrence => {
+        if (rec === null || rec === undefined) return null
+
+        // Legacy string pattern
+        if (typeof rec === 'string') {
+          const validLegacy: LegacyRecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly']
+          return validLegacy.includes(rec as LegacyRecurrencePattern)
+            ? rec as LegacyRecurrencePattern
+            : null
+        }
+
+        // Flexible config object
+        if (typeof rec === 'object') {
+          const config = rec as Partial<RecurrenceConfig>
+
+          if (typeof config.interval !== 'number' || config.interval < 1) return null
+
+          const validUnits: RecurrenceUnit[] = ['day', 'week', 'month', 'year']
+          if (!validUnits.includes(config.unit as RecurrenceUnit)) return null
+
+          const validated: RecurrenceConfig = {
+            interval: Math.max(1, Math.min(99, Math.floor(config.interval))),
+            unit: config.unit as RecurrenceUnit
+          }
+
+          if (Array.isArray(config.weekDays) && config.weekDays.length > 0) {
+            const validDays = config.weekDays.filter(
+              d => typeof d === 'number' && d >= 0 && d <= 6
+            ) as DayOfWeek[]
+            if (validDays.length > 0) {
+              validated.weekDays = [...new Set(validDays)].sort((a, b) => a - b)
+            }
+          }
+
+          if (typeof config.monthDay === 'number' && config.monthDay >= 1 && config.monthDay <= 31) {
+            validated.monthDay = config.monthDay
+          }
+
+          return validated
+        }
+
+        return null
+      }
 
       categorizedTasks.forEach(categorized => {
         const originalTask = allTasks.find(t => t.text === categorized.text)
         if (originalTask) {
           const complexity = validComplexities.includes(categorized.complexity) ? categorized.complexity : 'medium'
-          newTasks[categorized.quadrant].push({
+          const quadrant = validQuadrants.includes(categorized.quadrant) ? categorized.quadrant : originalTask.currentQuadrant
+
+          // Use AI-detected recurrence if provided, otherwise keep original
+          const aiRecurrence = validateRecurrence(categorized.recurrence)
+          const recurrence = aiRecurrence !== null ? aiRecurrence : originalTask.recurrence
+
+          newTasks[quadrant].push({
             id: originalTask.id,
             text: originalTask.text,
             description: originalTask.description,
             deadline: originalTask.deadline,
             completed: originalTask.completed,
-            recurrence: originalTask.recurrence,
+            recurrence: recurrence || undefined,
             completedAt: originalTask.completedAt,
             complexity
           })
