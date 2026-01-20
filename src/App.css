@@ -191,6 +191,10 @@
   color: #22c55e;
 }
 
+.complexity-medium {
+  color: #f59e0b;
+}
+
 .complexity-hard {
   color: #ef4444;
 }

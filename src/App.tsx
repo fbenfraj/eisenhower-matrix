@@ -966,8 +966,7 @@ Only respond with the JSON array, nothing else.`
                     />
                     <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
                       {task.recurrence && <span className="recurrence-icon">↻</span>}
-                      {task.complexity === 'easy' && <span className="complexity-badge complexity-easy">●</span>}
-                      {task.complexity === 'hard' && <span className="complexity-badge complexity-hard">●●●</span>}
+                      {task.complexity && <span className={`complexity-badge complexity-${task.complexity}`}>●</span>}
                       <span className="task-text">{task.text}</span>
                       {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
                     </div>
