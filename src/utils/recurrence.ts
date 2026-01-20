@@ -252,3 +252,69 @@ export const parseRecurrenceToFormState = (recurrence: TaskRecurrence): Recurren
     useSpecificMonthDay: recurrence.monthDay !== undefined
   }
 }
+
+const findNextWeekdayFromToday = (weekDays: DayOfWeek[]): string => {
+  const sortedDays = [...weekDays].sort((a, b) => a - b)
+  const today = new Date()
+  const currentDay = today.getDay() as DayOfWeek
+
+  const nextDayThisWeek = sortedDays.find(d => d > currentDay)
+
+  const nextDate = new Date(today)
+
+  if (nextDayThisWeek !== undefined) {
+    const daysToAdd = nextDayThisWeek - currentDay
+    nextDate.setDate(nextDate.getDate() + daysToAdd)
+  } else {
+    const daysUntilNextWeek = 7 - currentDay + sortedDays[0]
+    nextDate.setDate(nextDate.getDate() + daysUntilNextWeek)
+  }
+
+  return nextDate.toISOString().split('T')[0]
+}
+
+const findNextMonthDay = (monthDay: number): string => {
+  const today = new Date()
+  const currentDayOfMonth = today.getDate()
+
+  const nextDate = new Date(today)
+
+  if (currentDayOfMonth < monthDay) {
+    const maxDay = getDaysInMonth(nextDate)
+    nextDate.setDate(Math.min(monthDay, maxDay))
+  } else {
+    nextDate.setMonth(nextDate.getMonth() + 1)
+    const maxDay = getDaysInMonth(nextDate)
+    nextDate.setDate(Math.min(monthDay, maxDay))
+  }
+
+  return nextDate.toISOString().split('T')[0]
+}
+
+export const calculateInitialShowAfter = (recurrence: TaskRecurrence): string | null => {
+  if (!recurrence) return null
+
+  if (isLegacyRecurrence(recurrence)) return null
+
+  const { unit, weekDays, monthDay } = recurrence
+
+  if (unit === 'week' && weekDays && weekDays.length > 0) {
+    const today = new Date()
+    const currentDay = today.getDay() as DayOfWeek
+    if (weekDays.includes(currentDay)) {
+      return null
+    }
+    return findNextWeekdayFromToday(weekDays)
+  }
+
+  if (unit === 'month' && monthDay !== undefined) {
+    const today = new Date()
+    const currentDayOfMonth = today.getDate()
+    if (currentDayOfMonth === monthDay) {
+      return null
+    }
+    return findNextMonthDay(monthDay)
+  }
+
+  return null
+}
