@@ -44,3 +44,51 @@ export async function deleteTask(id: number): Promise<void> {
     throw new Error('Failed to delete task')
   }
 }
+
+export interface ParsedTaskResponse {
+  title: string
+  description: string
+  deadline: string | null
+  quadrant: Quadrant
+  recurrence: Task['recurrence']
+  complexity: Task['complexity']
+}
+
+export async function parseTaskWithAI(input: string): Promise<ParsedTaskResponse> {
+  const response = await fetch(`${API_BASE}/api/ai/parse-task`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to parse task with AI')
+  }
+  return response.json()
+}
+
+interface TaskForSort {
+  text: string
+  description?: string
+  deadline?: string
+  complexity?: Task['complexity']
+  recurrence?: Task['recurrence']
+}
+
+export interface SortedTaskResponse {
+  text: string
+  quadrant: Quadrant
+  complexity: Task['complexity']
+  recurrence?: Task['recurrence']
+}
+
+export async function sortTasksWithAI(tasks: TaskForSort[]): Promise<SortedTaskResponse[]> {
+  const response = await fetch(`${API_BASE}/api/ai/sort-tasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tasks }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to sort tasks with AI')
+  }
+  return response.json()
+}
