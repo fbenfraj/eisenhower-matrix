@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { SuggestedTask, Quadrant } from '../types'
 
 interface SuggestionsCardProps {
@@ -7,6 +7,18 @@ interface SuggestionsCardProps {
   onSnooze: (id: number) => Promise<void>
   onDismiss: (id: number) => Promise<void>
   onNever: (id: number) => Promise<void>
+}
+
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, onClickOutside: () => void) {
+  useEffect(() => {
+    function handleClick(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        onClickOutside()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [ref, onClickOutside])
 }
 
 const QUADRANT_OPTIONS: { value: Quadrant; label: string }[] = [
@@ -25,6 +37,10 @@ export function SuggestionsCard({
 }: SuggestionsCardProps) {
   const [selectedQuadrants, setSelectedQuadrants] = useState<Record<number, Quadrant>>({})
   const [loadingStates, setLoadingStates] = useState<Record<number, string>>({})
+  const [openOverflow, setOpenOverflow] = useState<number | null>(null)
+  const overflowRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(overflowRef, () => setOpenOverflow(null))
 
   if (suggestions.length === 0) return null
 
@@ -47,6 +63,7 @@ export function SuggestionsCard({
   }
 
   const handleSnooze = async (suggestionId: number) => {
+    setOpenOverflow(null)
     setLoadingStates(prev => ({ ...prev, [suggestionId]: 'snoozing' }))
     try {
       await onSnooze(suggestionId)
@@ -73,6 +90,7 @@ export function SuggestionsCard({
   }
 
   const handleNever = async (suggestionId: number) => {
+    setOpenOverflow(null)
     setLoadingStates(prev => ({ ...prev, [suggestionId]: 'blocking' }))
     try {
       await onNever(suggestionId)
@@ -87,10 +105,6 @@ export function SuggestionsCard({
 
   return (
     <div className="suggestions-card">
-      <div className="suggestions-header">
-        <span className="suggestions-icon">💡</span>
-        <span className="suggestions-title">Based on your patterns</span>
-      </div>
       <div className="suggestions-list">
         {suggestions.map(suggestion => {
           const isLoading = !!loadingStates[suggestion.id]
@@ -121,14 +135,6 @@ export function SuggestionsCard({
                   {loadingStates[suggestion.id] === 'accepting' ? '...' : 'Add'}
                 </button>
                 <button
-                  className="suggestion-btn snooze"
-                  onClick={() => handleSnooze(suggestion.id)}
-                  disabled={isLoading}
-                  title="Remind me later"
-                >
-                  {loadingStates[suggestion.id] === 'snoozing' ? '...' : 'Later'}
-                </button>
-                <button
                   className="suggestion-btn dismiss"
                   onClick={() => handleDismiss(suggestion.id)}
                   disabled={isLoading}
@@ -136,14 +142,34 @@ export function SuggestionsCard({
                 >
                   {loadingStates[suggestion.id] === 'dismissing' ? '...' : 'Skip'}
                 </button>
-                <button
-                  className="suggestion-btn never"
-                  onClick={() => handleNever(suggestion.id)}
-                  disabled={isLoading}
-                  title="Never suggest this again"
-                >
-                  {loadingStates[suggestion.id] === 'blocking' ? '...' : 'Never'}
-                </button>
+                <div className="suggestion-overflow-container" ref={openOverflow === suggestion.id ? overflowRef : null}>
+                  <button
+                    className="suggestion-btn overflow-toggle"
+                    onClick={() => setOpenOverflow(openOverflow === suggestion.id ? null : suggestion.id)}
+                    disabled={isLoading}
+                    title="More options"
+                  >
+                    ...
+                  </button>
+                  {openOverflow === suggestion.id && (
+                    <div className="suggestion-overflow-menu">
+                      <button
+                        className="overflow-menu-item"
+                        onClick={() => handleSnooze(suggestion.id)}
+                        disabled={isLoading}
+                      >
+                        {loadingStates[suggestion.id] === 'snoozing' ? '...' : 'Later'}
+                      </button>
+                      <button
+                        className="overflow-menu-item never"
+                        onClick={() => handleNever(suggestion.id)}
+                        disabled={isLoading}
+                      >
+                        {loadingStates[suggestion.id] === 'blocking' ? '...' : 'Never'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )
