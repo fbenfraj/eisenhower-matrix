@@ -82,6 +82,8 @@ export const useTasks = () => {
         complexity: task.complexity,
         showAfter: task.showAfter,
         recurrence: task.recurrence,
+        xp: task.xp,
+        aiScores: task.aiScores,
       })
 
       setTasks(prev => ({
@@ -112,9 +114,9 @@ export const useTasks = () => {
     }
   }
 
-  const toggleComplete = async (quadrant: Quadrant, taskId: number) => {
+  const toggleComplete = async (quadrant: Quadrant, taskId: number): Promise<number | null> => {
     const task = tasks[quadrant].find(t => t.id === taskId)
-    if (!task) return
+    if (!task) return null
 
     const isCompleting = !task.completed
     const today = new Date().toISOString().split('T')[0]
@@ -126,7 +128,7 @@ export const useTasks = () => {
           ? calculateNextDeadline(task.deadline, task.recurrence)
           : undefined
 
-        await api.updateTask(taskId, { completed: true, completedAt: today })
+        const result = await api.updateTask(taskId, { completed: true, completedAt: today })
 
         const nextTask = await api.createTask({
           text: task.text,
@@ -135,7 +137,9 @@ export const useTasks = () => {
           quadrant,
           recurrence: task.recurrence,
           complexity: task.complexity,
-          showAfter: nextOccurrenceDate
+          showAfter: nextOccurrenceDate,
+          xp: task.xp,
+          aiScores: task.aiScores,
         })
 
         setTasks(prev => ({
@@ -147,8 +151,10 @@ export const useTasks = () => {
             nextTask
           ]
         }))
+
+        return result.xpGained ?? null
       } else {
-        await api.updateTask(taskId, {
+        const result = await api.updateTask(taskId, {
           completed: isCompleting,
           completedAt: isCompleting ? today : undefined
         })
@@ -163,10 +169,13 @@ export const useTasks = () => {
             } : t
           )
         }))
+
+        return result.xpGained ?? null
       }
     } catch (err) {
       console.error('Failed to toggle task completion:', err)
       setError('Failed to update task')
+      return null
     }
   }
 

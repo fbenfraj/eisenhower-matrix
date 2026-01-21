@@ -15,6 +15,14 @@ export type TaskRecurrence = LegacyRecurrencePattern | RecurrenceConfig | null
 
 export type Complexity = 'easy' | 'medium' | 'hard'
 
+export type XpValue = 5 | 15 | 30 | 60 | 100
+
+export interface AiScores {
+  futurePainScore: number
+  urgencyScore: number
+  frictionScore: number
+}
+
 export type Task = {
   id: number
   text: string
@@ -25,6 +33,8 @@ export type Task = {
   recurrence?: TaskRecurrence
   complexity?: Complexity
   showAfter?: string
+  xp?: XpValue
+  aiScores?: AiScores
 }
 
 export type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-important' | 'not-urgent-not-important'

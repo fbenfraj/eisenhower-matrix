@@ -21,7 +21,9 @@ export const addTaskWithAI = async (input: string): Promise<AddTaskResult> => {
     completed: false,
     recurrence,
     complexity: parsed.complexity,
-    showAfter
+    showAfter,
+    xp: parsed.xp,
+    aiScores: parsed.aiScores
   }
 
   return { task, quadrant: parsed.quadrant }

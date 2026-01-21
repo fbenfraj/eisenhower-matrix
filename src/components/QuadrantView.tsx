@@ -1,4 +1,4 @@
-import { COMPLEXITY_ORDER, QUADRANT_CONFIG } from '../constants'
+import { COMPLEXITY_ORDER, QUADRANT_CONFIG, XP_COLORS } from '../constants'
 import type { Quadrant, Task } from '../types'
 
 interface QuadrantViewProps {
@@ -25,6 +25,9 @@ export const QuadrantView = ({
   }
 
   const sortedTasks = [...tasks].sort((a, b) => {
+    if (quadrant === 'urgent-important') {
+      return (b.xp ?? 0) - (a.xp ?? 0)
+    }
     const aComplexity = COMPLEXITY_ORDER[a.complexity || 'medium']
     const bComplexity = COMPLEXITY_ORDER[b.complexity || 'medium']
     return aComplexity - bComplexity
@@ -49,6 +52,14 @@ export const QuadrantView = ({
             />
             <div className="task-content" onClick={() => onEditTask(task)}>
               {task.recurrence && <span className="recurrence-icon">↻</span>}
+              {task.xp && (
+                <span
+                  className="xp-chip"
+                  style={{ backgroundColor: XP_COLORS[task.xp] }}
+                >
+                  {task.xp}
+                </span>
+              )}
               {task.complexity && (
                 <span className={`complexity-badge complexity-${task.complexity}`}>●</span>
               )}

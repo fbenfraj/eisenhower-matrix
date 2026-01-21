@@ -63,9 +63,17 @@ function App() {
     }
   }, [isLoading, totalTasks, loadSuggestions])
 
+  useEffect(() => {
+    if (xpToast !== null) {
+      const timer = setTimeout(() => setXpToast(null), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [xpToast])
+
   const [isFabOpen, setIsFabOpen] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addInput, setAddInput] = useState('')
+  const [xpToast, setXpToast] = useState<number | null>(null)
 
   const [editingTask, setEditingTask] = useState<{ task: Task; quadrant: Quadrant } | null>(null)
   const [editForm, setEditForm] = useState<EditFormState>({
@@ -171,6 +179,13 @@ function App() {
     logout()
   }
 
+  const handleToggleComplete = async (quadrant: Quadrant, taskId: number) => {
+    const xpGained = await toggleComplete(quadrant, taskId)
+    if (xpGained) {
+      setXpToast(xpGained)
+    }
+  }
+
   const handleAcceptSuggestion = async (id: number, quadrant: Quadrant) => {
     await acceptSuggestion(id, quadrant)
     await loadTasks()
@@ -214,7 +229,7 @@ function App() {
                 tasks={visibleTasks[quadrant]}
                 isMobile={isMobile}
                 isExpanded={expandedQuadrants.has(quadrant)}
-                onToggleComplete={(taskId) => toggleComplete(quadrant, taskId)}
+                onToggleComplete={(taskId) => handleToggleComplete(quadrant, taskId)}
                 onEditTask={(task) => openEditModal(task, quadrant)}
                 onRemoveTask={(taskId) => removeTask(quadrant, taskId)}
               />
@@ -243,6 +258,10 @@ function App() {
         <div className="error-toast" onClick={() => setError('')}>
           {error}
         </div>
+      )}
+
+      {xpToast !== null && (
+        <div className="xp-toast">+{xpToast} XP</div>
       )}
 
       <AddTaskModal

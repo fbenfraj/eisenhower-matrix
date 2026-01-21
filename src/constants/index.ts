@@ -43,3 +43,11 @@ export const VALID_QUADRANTS: Quadrant[] = [
 ]
 
 export const VALID_COMPLEXITIES: Complexity[] = ['easy', 'medium', 'hard']
+
+export const XP_COLORS: Record<number, string> = {
+  5: '#94a3b8',
+  15: '#22c55e',
+  30: '#3b82f6',
+  60: '#a855f7',
+  100: '#f59e0b'
+}

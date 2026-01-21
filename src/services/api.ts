@@ -1,4 +1,4 @@
-import type { Task, Quadrant } from '../types'
+import type { Task, Quadrant, XpValue, AiScores } from '../types'
 import { getStoredToken, clearAuth } from './auth'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
@@ -45,7 +45,11 @@ export async function createTask(task: Omit<ApiTask, 'id' | 'completed' | 'compl
   return response.json()
 }
 
-export async function updateTask(id: number, updates: Partial<ApiTask>): Promise<ApiTask> {
+export interface UpdateTaskResponse extends ApiTask {
+  xpGained?: number
+}
+
+export async function updateTask(id: number, updates: Partial<ApiTask>): Promise<UpdateTaskResponse> {
   const response = await fetch(`${API_BASE}/api/tasks/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
@@ -76,6 +80,8 @@ export interface ParsedTaskResponse {
   quadrant: Quadrant
   recurrence: Task['recurrence']
   complexity: Task['complexity']
+  aiScores: AiScores
+  xp: XpValue
 }
 
 export async function parseTaskWithAI(input: string): Promise<ParsedTaskResponse> {
