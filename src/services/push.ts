@@ -1,8 +1,11 @@
 import { subscribeToPush, unsubscribeFromPush, sendTestPush as apiSendTestPush } from './api'
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+  if (!base64String) {
+    throw new Error('VAPID public key is not configured')
+  }
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
   const rawData = window.atob(base64)
@@ -33,6 +36,10 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 export async function subscribeToPushNotifications(): Promise<boolean> {
   if (!isPushSupported()) {
     throw new Error('Push notifications not supported')
+  }
+
+  if (!VAPID_PUBLIC_KEY) {
+    throw new Error('VAPID public key is not configured')
   }
 
   const permission = await requestNotificationPermission()
