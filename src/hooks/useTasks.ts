@@ -292,6 +292,7 @@ export const useTasks = () => {
     isAddingTask,
     error,
     setError,
+    loadTasks,
     addTask,
     removeTask,
     toggleComplete,

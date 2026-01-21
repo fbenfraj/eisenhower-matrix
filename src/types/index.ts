@@ -52,3 +52,32 @@ export interface EditFormState {
 export interface TaskWithQuadrant extends Task {
   currentQuadrant: Quadrant
 }
+
+export type SuggestionSourceType =
+  | 'S1_RECURRENCE'
+  | 'S2_FOLLOW_UP'
+  | 'S3_LATE_ADDITION'
+  | 'S4_DEPENDENCY'
+  | 'S5_MAINTENANCE'
+
+export type SuggestionStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'SNOOZED'
+  | 'DISMISSED'
+  | 'NEVER'
+
+export interface SuggestedTask {
+  id: number
+  suggestedText: string
+  sourceType: SuggestionSourceType
+  confidence: number
+  why: string
+  status: SuggestionStatus
+  fingerprint: string
+  relatedTaskIds: number[]
+  snoozeUntil: string | null
+  lastShownAt: string | null
+  createdAt: string
+  updatedAt: string
+}

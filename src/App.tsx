@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { DEFAULT_RECURRENCE_FORM } from './constants'
 import type { Complexity, Quadrant, Task, RecurrenceFormState } from './types'
 import { buildRecurrenceConfig } from './utils/recurrence'
 import { useTasks } from './hooks/useTasks'
+import { useSuggestions } from './hooks/useSuggestions'
 import { useMobile } from './hooks/useMobile'
 import { useAuth } from './context/AuthContext'
 import {
@@ -12,7 +13,8 @@ import {
   parseRecurrenceToFormState,
   FAB,
   FilterBar,
-  QuadrantView
+  QuadrantView,
+  SuggestionsCard
 } from './components'
 
 interface EditFormState {
@@ -35,6 +37,7 @@ function App() {
     isAddingTask,
     error,
     setError,
+    loadTasks,
     addTask,
     removeTask,
     toggleComplete,
@@ -42,8 +45,23 @@ function App() {
     autoSortWithAI
   } = useTasks()
 
+  const {
+    suggestions,
+    loadSuggestions,
+    acceptSuggestion,
+    snoozeSuggestion,
+    dismissSuggestion,
+    neverSuggestion
+  } = useSuggestions()
+
   const { isMobile, expandedQuadrants, toggleQuadrantExpand, expandQuadrant } = useMobile()
   const { logout } = useAuth()
+
+  useEffect(() => {
+    if (!isLoading && totalTasks > 0) {
+      loadSuggestions()
+    }
+  }, [isLoading, totalTasks, loadSuggestions])
 
   const [isFabOpen, setIsFabOpen] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -153,6 +171,12 @@ function App() {
     logout()
   }
 
+  const handleAcceptSuggestion = async (id: number, quadrant: Quadrant) => {
+    await acceptSuggestion(id, quadrant)
+    await loadTasks()
+    expandQuadrant(quadrant)
+  }
+
   return (
     <div className="app">
       {isLoading ? (
@@ -165,6 +189,15 @@ function App() {
         </div>
       ) : (
         <>
+          {suggestions.length > 0 && (
+            <SuggestionsCard
+              suggestions={suggestions}
+              onAccept={handleAcceptSuggestion}
+              onSnooze={snoozeSuggestion}
+              onDismiss={dismissSuggestion}
+              onNever={neverSuggestion}
+            />
+          )}
           {isMobile && (
             <FilterBar
               nonEmptyQuadrants={nonEmptyQuadrants}
